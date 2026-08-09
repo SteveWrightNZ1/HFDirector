@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE TABLE IF NOT EXISTS assets (
     id INTEGER PRIMARY KEY,
     product TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'metservice',
     path TEXT NOT NULL UNIQUE,
     media_type TEXT NOT NULL,
     size INTEGER NOT NULL,
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     local_time TEXT NOT NULL,
     weekdays TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6',
     products TEXT NOT NULL,
+    source_policy TEXT NOT NULL DEFAULT '{}',
     profile TEXT NOT NULL DEFAULT '1',
     last_slot TEXT,
     created_at TEXT NOT NULL,
@@ -102,6 +104,19 @@ class Database:
     def initialise(self) -> None:
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            asset_columns = {row[1] for row in connection.execute("PRAGMA table_info(assets)")}
+            if "source" not in asset_columns:
+                connection.execute("ALTER TABLE assets ADD COLUMN source TEXT NOT NULL DEFAULT 'metservice'")
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS assets_source_product_time ON assets(source,product,observed_at DESC)"
+            )
+            connection.execute("UPDATE assets SET product='rain-forecast' WHERE product='rain-5day'")
+            connection.execute(
+                "UPDATE assets SET product='satellite-infrared' WHERE product='satellite-tasman-infrared'"
+            )
+            schedule_columns = {row[1] for row in connection.execute("PRAGMA table_info(schedules)")}
+            if "source_policy" not in schedule_columns:
+                connection.execute("ALTER TABLE schedules ADD COLUMN source_policy TEXT NOT NULL DEFAULT '{}'")
             connection.execute(
                 "INSERT OR IGNORE INTO settings(key,value,updated_at) VALUES('tx_inhibit','1',?)",
                 (utcnow(),),

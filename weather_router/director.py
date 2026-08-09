@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import threading
 import time
 from datetime import datetime
@@ -9,6 +10,7 @@ from zoneinfo import ZoneInfo
 from .catalogue import Catalogue
 from .db import Database, utcnow
 from .qsstv import QSSTVClient
+from .registry import provider_order
 
 LOG = logging.getLogger(__name__)
 TERMINAL = {"sent", "failed", "cancelled", "aborted", "invalidated"}
@@ -75,7 +77,10 @@ class Director:
 
     def schedules(self) -> list[dict]:
         with self.db.connect() as connection:
-            return self.db.rows(connection.execute("SELECT * FROM schedules ORDER BY id").fetchall())
+            schedules = self.db.rows(connection.execute("SELECT * FROM schedules ORDER BY id").fetchall())
+            for schedule in schedules:
+                schedule["sources"] = json.loads(schedule.get("source_policy") or "{}")
+            return schedules
 
     def save_schedule(self, schedule_id: int, values: dict) -> None:
         local_time = values["local_time"].strip()
@@ -83,9 +88,13 @@ class Director:
         products = ",".join(part.strip() for part in values["products"].split(",") if part.strip())
         if not products:
             raise ValueError("At least one product is required")
+        source_policy = {
+            product: values.get(f"source__{product}", "automatic")
+            for product in products.split(",")
+        }
         with self.db.connect() as connection:
             connection.execute(
-                """UPDATE schedules SET name=?,enabled=?,local_time=?,weekdays=?,products=?,profile=?,updated_at=?
+                """UPDATE schedules SET name=?,enabled=?,local_time=?,weekdays=?,products=?,source_policy=?,profile=?,updated_at=?
                    WHERE id=?""",
                 (
                     values["name"].strip(),
@@ -93,6 +102,7 @@ class Director:
                     local_time,
                     values.get("weekdays", "0,1,2,3,4,5,6"),
                     products,
+                    json.dumps(source_policy, sort_keys=True),
                     values.get("profile", "1").strip(),
                     utcnow(),
                     schedule_id,
@@ -118,14 +128,20 @@ class Director:
             )
             run_id = cursor.lastrowid
             missing = []
+            source_policy = json.loads(schedule["source_policy"] or "{}")
             for position, product in enumerate(schedule["products"].split(","), 1):
-                asset = connection.execute(
-                    """SELECT * FROM assets WHERE product=?
-                       ORDER BY COALESCE(source_time,observed_at) DESC,id DESC LIMIT 1""",
-                    (product,),
-                ).fetchone()
+                requested_source = source_policy.get(product, "automatic")
+                asset = None
+                for provider in provider_order(product, requested_source):
+                    asset = connection.execute(
+                        """SELECT * FROM assets WHERE product=? AND source=?
+                           ORDER BY COALESCE(source_time,observed_at) DESC,id DESC LIMIT 1""",
+                        (product, provider),
+                    ).fetchone()
+                    if asset:
+                        break
                 if not asset:
-                    missing.append(product)
+                    missing.append(f"{product} ({requested_source})")
                     continue
                 connection.execute(
                     """INSERT INTO broadcast_items
@@ -252,7 +268,8 @@ class Director:
                 raise ValueError("Run not found")
             result = dict(row)
             result["items"] = self.db.rows(connection.execute(
-                """SELECT i.*,a.product,a.path,a.media_type,a.size FROM broadcast_items i
+                """SELECT i.*,a.product,a.source,a.path,a.media_type,a.size,a.sha256,a.source_time,a.metadata_json
+                   FROM broadcast_items i
                    JOIN assets a ON a.id=i.asset_id WHERE i.run_id=? ORDER BY i.position""",
                 (run_id,),
             ).fetchall())

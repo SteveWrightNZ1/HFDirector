@@ -9,6 +9,7 @@ from PIL import Image
 from weather_router.catalogue import Catalogue
 from weather_router.db import Database
 from weather_router.director import Director
+from weather_router.registry import provider_order
 
 
 class FakeQSSTV:
@@ -99,6 +100,27 @@ class RouterTest(unittest.TestCase):
         self.modem.pending_bsr.append({"id": "bsr-3", "callsign": "ZL3OK"})
         self.director.reconcile_bsr_policy()
         self.assertEqual(self.modem.approved, ["bsr-1", "bsr-3"])
+
+    def test_explicit_source_selection(self):
+        root = Path(self.temp.name)
+        chart = root / "ecmwf.jpg"
+        Image.new("RGB", (32, 20), "green").save(chart)
+        self.assertTrue(self.catalogue.ingest_file("pressure-analysis", chart, "ecmwf"))
+        with self.db.connect() as connection:
+            connection.execute(
+                "UPDATE schedules SET products=?,source_policy=? WHERE id=1",
+                ('pressure-analysis', '{"pressure-analysis":"ecmwf"}'),
+            )
+        run = self.director.create_run(1, "manual:ecmwf")
+        self.assertEqual(run["state"], "ready")
+        self.assertEqual(run["items"][0]["source"], "ecmwf")
+
+    def test_automatic_provider_priority_is_stable(self):
+        self.assertEqual(
+            provider_order("pressure-analysis", "automatic"),
+            ["ecmwf", "metservice", "noaa"],
+        )
+        self.assertEqual(provider_order("rain-radar", "ecmwf"), [])
 
 
 if __name__ == "__main__":

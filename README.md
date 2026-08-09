@@ -5,15 +5,15 @@ broadcasts. It is deliberately separate from QSSTV: weather acquisition,
 schedules and operator decisions live here; modulation, radio control and the
 final TX state transition remain in QSSTV.
 
-The initial source catalogue supports the existing MetService downloader's
-pressure charts, national rain radar, five-day rain forecast, Tasman infrared
-satellite images, METAREA XIV chart, and high-seas text bulletins.
+The source catalogue supports the existing MetService downloader plus
+ready-rendered ECMWF OpenCharts. Schedules select logical weather products and
+may pin each one to a provider or use an ordered automatic fallback.
 
 ## What it does
 
 Weather Router runs continuously and:
 
-1. Executes the existing `metservice_maps.py` downloader shortly after startup
+1. Refreshes the configured MetService and ECMWF sources shortly after startup
    and at a configurable interval.
 2. Validates downloaded images with Pillow, hashes them, copies them into a
    managed catalogue, and deduplicates repeated products.
@@ -78,11 +78,22 @@ Each product card shows the most recently catalogued file. The catalogue keeps
 content-addressed copies under `var/assets`; repeated downloads of identical
 files do not create duplicate assets.
 
+The `Sources` page is the acquisition and provenance console. It shows provider
+availability and licensing, the logical-product compatibility matrix, latest
+assets per provider, original source links, timestamps, dimensions and hashes.
+It can refresh a complete provider or one ECMWF chart. ECMWF images use the
+Australasia projection and are resized/compressed for practical DRM delivery;
+the original OpenCharts URL and CC BY 4.0 attribution remain attached to the
+catalogue record. NOAA is shown as planned, but cannot yet be selected for a
+successful run unless an asset has been supplied by a future adapter.
+
 ### Schedules and broadcasts
 
-A schedule contains a local time, DRM profile, and an ordered comma-separated
-product list. `Build run now` freezes the current latest asset for every listed
-product. When TX is inhibited, the run remains `ready` and nothing is submitted.
+A schedule contains a local time, DRM profile, an ordered comma-separated
+product list, and a source policy for each product. `Automatic` follows the
+compatibility matrix's provider order; selecting MetService, ECMWF, or NOAA pins
+that product to that source. `Build run now` freezes the selected exact asset.
+When TX is inhibited, the run remains `ready` and nothing is submitted.
 
 To transmit a prepared run:
 
@@ -146,8 +157,9 @@ Environment variables:
 Schedules use local wall-clock time and explicit weekdays. A unique local slot
 is persisted for each scheduled run, so a scheduler pass is idempotent. The
 router does not replay missed slots after restart.
-The running service refreshes MetService five seconds after startup and every
-30 minutes thereafter by default.
+The running service refreshes implemented sources five seconds after startup
+and every 30 minutes thereafter by default. ECMWF requests are deliberately
+paced to respect the OpenCharts service.
 
 ## Running as a user service
 

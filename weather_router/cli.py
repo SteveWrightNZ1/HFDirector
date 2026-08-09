@@ -10,6 +10,8 @@ from .director import Director, Scheduler
 from .qsstv import QSSTVClient
 from .web import create_app
 from .sources.metservice import MetServiceSource
+from .sources.ecmwf import ECMWFOpenChartsSource
+from .sources.manager import SourceManager
 
 
 def components(config: Config):
@@ -36,9 +38,10 @@ def main() -> None:
         print(catalogue.ingest_tree(config.import_root))
         return
     app = create_app(config)
-    scheduler = Scheduler(
-        director, config.poll_seconds, MetServiceSource(config, catalogue), config.fetch_seconds
+    sources = SourceManager(
+        MetServiceSource(config, catalogue), ECMWFOpenChartsSource(catalogue)
     )
+    scheduler = Scheduler(director, config.poll_seconds, sources, config.fetch_seconds)
     scheduler.start()
     app.run(host=config.bind_host, port=config.bind_port, debug=args.debug, use_reloader=False)
 

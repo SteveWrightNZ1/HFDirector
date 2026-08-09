@@ -7,6 +7,9 @@ from .config import Config
 from .db import Database, utcnow
 from .director import Director
 from .qsstv import QSSTVClient
+from .registry import PRODUCTS, SOURCES
+from .sources.ecmwf import ECMWFOpenChartsSource
+from .sources.manager import SourceManager
 from .sources.metservice import MetServiceSource
 
 
@@ -17,7 +20,9 @@ def create_app(config: Config | None = None) -> Flask:
     catalogue = Catalogue(db, config.asset_root)
     qsstv = QSSTVClient(config.qsstv_url)
     director = Director(db, catalogue, qsstv, config.timezone)
-    source = MetServiceSource(config, catalogue)
+    metservice = MetServiceSource(config, catalogue)
+    ecmwf = ECMWFOpenChartsSource(catalogue)
+    source = SourceManager(metservice, ecmwf)
 
     app = Flask(__name__)
     app.secret_key = "weather-router-local-operator"
@@ -48,7 +53,34 @@ def create_app(config: Config | None = None) -> Flask:
             runs=director.runs(),
             pending_bsr=pending_bsr,
             timezone=config.timezone,
+            source_registry=SOURCES,
+            product_registry=PRODUCTS,
         )
+
+    @app.get("/sources")
+    def source_viewer():
+        latest = catalogue.products()
+        for item in latest:
+            try:
+                import json
+                item["metadata"] = json.loads(item.get("metadata_json") or "{}")
+            except ValueError:
+                item["metadata"] = {}
+        return render_template(
+            "sources.html", sources=SOURCES, products=PRODUCTS, assets=latest,
+            ecmwf_products=ecmwf.products(),
+        )
+
+    @app.post("/sources/<provider>/fetch")
+    def fetch_source(provider: str):
+        product = request.form.get("product") or None
+        result = source.refresh_provider(provider, [product] if product else None)
+        flash(
+            f"{SOURCES.get(provider, {}).get('name', provider)} refreshed; "
+            f"imported {result.get('imported', 0)} assets"
+            if result.get("ok") else result.get("error", "Source refresh completed with errors")
+        )
+        return redirect(url_for("source_viewer"))
 
     @app.post("/control/inhibit")
     def inhibit():
@@ -75,7 +107,7 @@ def create_app(config: Config | None = None) -> Flask:
 
     @app.post("/catalogue/fetch")
     def fetch_weather():
-        result = source.refresh()
+        result = source.refresh_provider("metservice")
         flash(
             f"Weather refreshed; imported {result.get('imported', 0)} new assets"
             if result.get("ok") else "Weather fetch completed with errors; see service log"

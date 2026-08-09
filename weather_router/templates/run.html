@@ -5,7 +5,7 @@
 <p><span class="state {{ run.state }}">{{ run.state }}</span> · profile {{ run.profile }} · {{ run.slot }}</p>
 {% if run.reason %}<div class="messages"><div>{{ run.reason }}</div></div>{% endif %}
 {% if run.state == 'ready' %}<form method="post" action="{{ url_for('submit_run', run_id=run.id) }}"><button class="danger" {{ 'disabled' if inhibited }}>Submit to QSSTV</button>{% if inhibited %}<span class="muted"> Disable TX inhibit first.</span>{% endif %}</form>{% endif %}
-<table><thead><tr><th>#</th><th>Product</th><th>File</th><th>State</th><th>QSSTV queue</th><th>Detail</th></tr></thead><tbody>
-{% for item in run['items'] %}<tr><td>{{ item.position }}</td><td>{{ item.product }}</td><td>{{ item.path }}</td><td><span class="state {{ item.state }}">{{ item.state }}</span></td><td>{{ item.qsstv_queue_id or '–' }}</td><td>{{ item.detail or '' }}</td></tr>{% endfor %}
+<table><thead><tr><th>#</th><th>Product</th><th>Source</th><th>File</th><th>State</th><th>QSSTV queue</th><th>Detail</th></tr></thead><tbody>
+{% for item in run['items'] %}<tr><td>{{ item.position }}</td><td>{{ item.product }}</td><td>{{ item.source }}</td><td>{{ item.path }}<br><small>{{ item.sha256 }}</small></td><td><span class="state {{ item.state }}">{{ item.state }}</span></td><td>{{ item.qsstv_queue_id or '–' }}</td><td>{{ item.detail or '' }}</td></tr>{% endfor %}
 </tbody></table>
 {% endblock %}

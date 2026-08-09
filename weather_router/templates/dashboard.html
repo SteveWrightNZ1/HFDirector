@@ -37,7 +37,7 @@
     {% for product in products %}
     <article class="product">
       {% if product.media_type.startswith('image/') %}<a href="{{ url_for('asset', asset_id=product.id) }}"><img src="{{ url_for('asset', asset_id=product.id) }}" alt="{{ product.product }}"></a>{% endif %}
-      <div><h3>{{ product.product }}</h3><p>{{ product.size }} bytes · {{ product.width or '–' }}×{{ product.height or '–' }}</p><p class="muted">{{ product.source_time or product.observed_at }}</p></div>
+      <div><h3>{{ product.product }}</h3><p><span class="state">{{ product.source }}</span> · {{ product.size }} bytes · {{ product.width or '–' }}×{{ product.height or '–' }}</p><p class="muted">{{ product.source_time or product.observed_at }}</p></div>
     </article>
     {% else %}<p>No products imported yet.</p>{% endfor %}
   </div>
@@ -51,6 +51,16 @@
     <label>Local time<input name="local_time" type="time" value="{{ schedule.local_time }}"></label>
     <label>DRM profile<input name="profile" value="{{ schedule.profile }}"></label>
     <label class="wide">Products, in order<input name="products" value="{{ schedule.products }}"></label>
+    <div class="wide source-selectors"><strong>Source policy per product</strong>
+      {% for product in schedule.products.split(',') %}<label>{{ product }}
+        <select name="source__{{ product }}">
+          {% for provider in ['automatic','metservice','ecmwf','noaa'] %}
+          <option value="{{ provider }}" {{ 'selected' if schedule.sources.get(product, 'automatic') == provider }}>{{ source_registry[provider].name }}</option>
+          {% endfor %}
+        </select>
+      </label>{% endfor %}
+      <small>Save once after changing the product list to rebuild these selectors.</small>
+    </div>
     <label><input name="enabled" type="checkbox" value="1" {{ 'checked' if schedule.enabled }}> Daily schedule enabled</label>
     <input name="weekdays" type="hidden" value="{{ schedule.weekdays }}">
     <div class="actions"><button>Save</button><button formaction="{{ url_for('run_now', schedule_id=schedule.id) }}">Build run now</button></div>

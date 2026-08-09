@@ -16,8 +16,8 @@ from .db import Database, utcnow
 PRODUCT_DIRS = {
     "pressure": None,
     "rain-radar": "rain-radar",
-    "rain-5day": "rain-5day",
-    "satellite-tasman-infrared": "satellite-tasman-infrared",
+    "rain-5day": "rain-forecast",
+    "satellite-tasman-infrared": "satellite-infrared",
     "marine-high-seas": None,
 }
 
@@ -33,7 +33,9 @@ def product_for(relative: Path) -> str | None:
     if directory == "pressure":
         return stem
     if directory == "marine-high-seas":
-        return "marine-high-seas-chart" if relative.suffix.lower() in IMAGE_SUFFIXES else f"marine-{stem}"
+        if relative.suffix.lower() in IMAGE_SUFFIXES:
+            return "marine-high-seas-chart"
+        return "marine-pacific" if stem == "pacific" else f"marine-{stem}"
     return PRODUCT_DIRS.get(directory)
 
 
@@ -69,11 +71,14 @@ class Catalogue:
             if not product:
                 skipped += 1
                 continue
-            if self.ingest_file(product, source):
+            if self.ingest_file(product, source, "metservice"):
                 imported += 1
         return {"ok": True, "source": str(dated[0]), "imported": imported, "skipped": skipped}
 
-    def ingest_file(self, product: str, source: Path) -> int:
+    def ingest_file(
+        self, product: str, source: Path, provider: str = "metservice", metadata=None,
+        source_timestamp: str | None = None,
+    ) -> int:
         content = source.read_bytes()
         digest = hashlib.sha256(content).hexdigest()
         suffix = source.suffix.lower()
@@ -101,29 +106,32 @@ class Catalogue:
                 return 0
             cursor = connection.execute(
                 """INSERT INTO assets
-                   (product,path,media_type,size,sha256,observed_at,source_time,width,height,metadata_json)
-                   VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                   (product,source,path,media_type,size,sha256,observed_at,source_time,width,height,metadata_json)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     product,
+                    provider,
                     str(target),
                     media_type,
                     len(content),
                     digest,
                     utcnow(),
-                    source_time(source),
+                    source_timestamp or source_time(source),
                     width,
                     height,
-                    json.dumps({"original_name": source.name}),
+                    json.dumps({"original_name": source.name, **(metadata or {})}),
                 ),
             )
             return cursor.lastrowid
 
-    def latest(self, product: str) -> dict | None:
+    def latest(self, product: str, provider: str | None = None) -> dict | None:
         with self.db.connect() as connection:
+            where = "product=?" + (" AND source=?" if provider else "")
+            params = (product, provider) if provider else (product,)
             row = connection.execute(
-                """SELECT * FROM assets WHERE product=?
-                   ORDER BY COALESCE(source_time, observed_at) DESC, id DESC LIMIT 1""",
-                (product,),
+                f"""SELECT * FROM assets WHERE {where}
+                    ORDER BY COALESCE(source_time, observed_at) DESC, id DESC LIMIT 1""",
+                params,
             ).fetchone()
             return dict(row) if row else None
 
@@ -132,7 +140,7 @@ class Catalogue:
             return self.db.rows(
                 connection.execute(
                     """SELECT a.* FROM assets a
-                       JOIN (SELECT product,max(id) id FROM assets GROUP BY product) latest
+                       JOIN (SELECT source,product,max(id) id FROM assets GROUP BY source,product) latest
                          ON latest.id=a.id ORDER BY a.product"""
                 ).fetchall()
             )
