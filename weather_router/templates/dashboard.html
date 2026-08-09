@@ -24,7 +24,7 @@
 </section>
 
 <section class="grid status-grid">
-  <article><p class="eyebrow">QSSTV modem</p><h2>{{ 'Offline' if modem_error else ('Transmitting' if modem.busy else 'Idle') }}</h2><p>{{ modem_error or (modem.queued|string + ' queued') }}</p></article>
+  <article><p class="eyebrow">Active modem</p><h2>{% if modem_supervisor %}{{ modem_supervisor.name|upper }}{% else %}{{ 'Offline' if modem_error else 'QSSTV' }}{% endif %}</h2><p>{% if modem_supervisor and modem_supervisor.name == 'fldigi' %}RSID request listener · RX only{% elif modem_supervisor and modem_supervisor.receive_window_seconds %}BSR/FIX receive window · {{ modem_supervisor.receive_window_seconds }}s{% else %}{{ modem_error or ('Transmitting' if modem.busy else modem.queued|string + ' queued') }}{% endif %}</p></article>
   <article><p class="eyebrow">Pending BSR</p><h2>{{ pending_bsr|length }}</h2><p><a href="{{ url_for('bsr_list') }}">Review requests</a></p></article>
   <article><p class="eyebrow">Weather products</p><h2>{{ products|length }}</h2><p>Latest catalogue entries</p></article>
 </section>

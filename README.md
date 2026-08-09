@@ -48,6 +48,20 @@ python3 -m weather_router import
 python3 -m weather_router serve
 ```
 
+For the current workstation, `~/transmission/start` launches only Weather
+Router. Its modem supervisor keeps FLDigi running as the idle RSID command
+listener, using `~/transmission/.fldigi` and local XML-RPC port 7363. FLDigi is
+forced into receive-only mode.
+
+When a queued DRM file requires QSSTV, the supervisor stops FLDigi, starts
+`QSSTV/build/qsstv --headless`, waits for its XML-RPC service, and then permits
+the director to enqueue the file. Only one local modem process is active at a
+time. After the QSSTV queue becomes idle, QSSTV remains active for a two-minute
+BSR/FIX receive window before the supervisor restores FLDigi.
+
+The supervisor exposes a generic registered-modem activation interface; QSSTV
+and FLDigi are the first two adapters rather than permanent architectural roles.
+
 For this station the router is started with:
 
 ```sh

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import logging
 
 from .catalogue import Catalogue
@@ -12,6 +13,7 @@ from .web import create_app
 from .sources.metservice import MetServiceSource
 from .sources.ecmwf import ECMWFOpenChartsSource
 from .sources.manager import SourceManager
+from .modems import ManagedQSSTVClient, ModemSupervisor
 
 
 def components(config: Config):
@@ -37,7 +39,11 @@ def main() -> None:
     if args.command == "import":
         print(catalogue.ingest_tree(config.import_root))
         return
-    app = create_app(config)
+    supervisor = ModemSupervisor(config.root.parent, config.qsstv_url)
+    supervisor.start()
+    atexit.register(supervisor.stop)
+    app = create_app(config, ManagedQSSTVClient(config.qsstv_url, supervisor), supervisor)
+    director = app.config["DIRECTOR"]
     sources = SourceManager(
         MetServiceSource(config, catalogue), ECMWFOpenChartsSource(catalogue)
     )

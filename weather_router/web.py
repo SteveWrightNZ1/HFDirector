@@ -17,12 +17,12 @@ from .sources.manager import SourceManager
 from .sources.metservice import MetServiceSource
 
 
-def create_app(config: Config | None = None) -> Flask:
+def create_app(config: Config | None = None, qsstv=None, modem_supervisor=None) -> Flask:
     config = config or Config.from_env()
     db = Database(config.database)
     db.initialise()
     catalogue = Catalogue(db, config.asset_root)
-    qsstv = QSSTVClient(config.qsstv_url)
+    qsstv = qsstv or QSSTVClient(config.qsstv_url)
     director = Director(db, catalogue, qsstv, config.timezone)
     metservice = MetServiceSource(config, catalogue)
     ecmwf = ECMWFOpenChartsSource(catalogue)
@@ -35,7 +35,7 @@ def create_app(config: Config | None = None) -> Flask:
         db.set_setting("session_secret", session_secret)
     app.secret_key = session_secret
     app.config.update(ROUTER_CONFIG=config, DB=db, CATALOGUE=catalogue, QSSTV=qsstv,
-                      DIRECTOR=director, WEATHER_SOURCE=source)
+                      DIRECTOR=director, WEATHER_SOURCE=source, MODEM_SUPERVISOR=modem_supervisor)
 
     @app.before_request
     def require_login():
@@ -78,16 +78,20 @@ def create_app(config: Config | None = None) -> Flask:
 
     @app.get("/")
     def dashboard():
-        try:
-            modem = qsstv.status()
-            modem_error = None
-        except Exception as exc:
-            modem = {"busy": False, "queued": 0}
-            modem_error = str(exc)
-        try:
-            pending_bsr = qsstv.bsr("pending")
-        except Exception:
-            pending_bsr = []
+        supervised = modem_supervisor.state if modem_supervisor else None
+        if supervised and supervised["name"] != "qsstv":
+            modem, modem_error, pending_bsr = {"busy": False, "queued": 0}, None, []
+        else:
+            try:
+                modem = qsstv.status()
+                modem_error = None
+            except Exception as exc:
+                modem = {"busy": False, "queued": 0}
+                modem_error = str(exc)
+            try:
+                pending_bsr = qsstv.bsr("pending")
+            except Exception:
+                pending_bsr = []
         return render_template(
             "dashboard.html",
             inhibited=director.inhibited,
@@ -102,6 +106,7 @@ def create_app(config: Config | None = None) -> Flask:
             timezone=config.timezone,
             source_registry=SOURCES,
             product_registry=PRODUCTS,
+            modem_supervisor=supervised,
         )
 
     @app.get("/sources")
