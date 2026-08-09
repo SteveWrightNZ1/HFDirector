@@ -1,9 +1,29 @@
 # HFDirector
 
-HFDirector is an operator-controlled director for scheduled weather-file
-broadcasts. It is deliberately separate from QSSTV: weather acquisition,
-schedules and operator decisions live here; modulation, radio control and the
-final TX state transition remain in QSSTV.
+HFDirector is a modem-independent, operator-controlled HF station director. Its
+first application is scheduled weather-file broadcasting, but schedules,
+policy, users, radio resources and durable work queues are deliberately kept
+separate from any particular modem. A selected modem retains ownership of its
+modulation and final TX/PTT state transition.
+
+Two modem integrations are installed so far:
+
+- **QSSTV-headless** provides fast DRM file transmission, durable TX state and
+  BSR/FIX repair handling.
+- **FLDigi** provides the idle RX-only command channel, with RSID enabled so it
+  can recognize incoming request modes.
+
+Additional modems can be registered with the same lifecycle supervisor and
+loaded only when their queued work requires them.
+
+## Collaborators wanted
+
+This is an early working system and we are looking for local amateur-radio
+operators to help test real on-air request reception, modem switching, DRM
+weather delivery and BSR/FIX recovery. No radio is connected to the development
+machine, so practical testing with nearby stations, different transceivers and
+real HF paths is especially valuable. Please open a GitHub issue to coordinate
+a test rather than transmitting unsolicited requests.
 
 The source catalogue supports the existing MetService downloader plus
 ready-rendered ECMWF OpenCharts. Schedules select logical weather products and
@@ -34,13 +54,7 @@ The initial products are:
 
 ## Quick start
 
-QSSTV should already be running, normally with:
-
-```sh
-~/transmission/QSSTV/build/qsstv --headless
-```
-
-Then start the router:
+Start HFDirector directly with:
 
 ```sh
 cd ~/transmission/HFDirector
@@ -87,8 +101,9 @@ Werkzeug hashes; the plaintext password is not retained.
 To make the UI available on one LAN address, for example, start it with
 `HFDIRECTOR_HOST=172.16.10.200`. Use `0.0.0.0` only when it should listen
 on every interface.
-Authentication is not implemented in this first version, so do this only on a
-trusted management LAN.
+Web login authentication is enabled, but the current Flask development server
+does not provide TLS. Keep it on a trusted management LAN or place it behind a
+proper HTTPS reverse proxy.
 
 ## Operator workflow
 
