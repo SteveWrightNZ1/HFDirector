@@ -109,7 +109,9 @@ class ModemSupervisor:
                 return
             self.fldigi_config.mkdir(parents=True, exist_ok=True)
         self.activate("fldigi")
-        self._configure_fldigi()
+        threading.Thread(
+            target=self._configure_fldigi, name="fldigi-configure", daemon=True
+        ).start()
 
     def activate_qsstv(self, timeout: float = 15) -> None:
         with self._lock:
