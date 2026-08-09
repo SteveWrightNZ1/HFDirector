@@ -9,7 +9,30 @@ The initial source catalogue supports the existing MetService downloader's
 pressure charts, national rain radar, five-day rain forecast, Tasman infrared
 satellite images, METAREA XIV chart, and high-seas text bulletins.
 
-## Run it
+## What it does
+
+Weather Router runs continuously and:
+
+1. Executes the existing `metservice_maps.py` downloader shortly after startup
+   and at a configurable interval.
+2. Validates downloaded images with Pillow, hashes them, copies them into a
+   managed catalogue, and deduplicates repeated products.
+3. Selects the latest asset for each product in an enabled schedule.
+4. Freezes those exact assets into a durable broadcast-run manifest.
+5. Submits each manifest item to QSSTV with a stable, idempotent request ID.
+6. Reconciles the local run and item states with QSSTV's durable TX queue.
+7. Displays received BSRs and supports manual or policy-controlled FIX approval.
+
+The initial products are:
+
+- Southwest Pacific surface-pressure analysis and H+30/H+48/H+72 forecasts
+- National New Zealand rain-radar frames
+- Five-day rain forecast frames
+- Tasman Sea infrared satellite frames
+- METAREA XIV responsibility chart
+- Pacific, Subtropic, Forties and Southern high-seas bulletins
+
+## Quick start
 
 QSSTV should already be running, normally with:
 
@@ -25,8 +48,15 @@ python3 -m weather_router import
 python3 -m weather_router serve
 ```
 
-Open <http://127.0.0.1:8080/>. Transmission is inhibited by default and the
-example daily schedule is disabled. Importing or fetching weather does not
+For this station the router is started with:
+
+```sh
+cd ~/transmission/weather-router
+WEATHER_ROUTER_HOST=172.16.10.200 python3 -m weather_router serve
+```
+
+Open <http://172.16.10.200:8080/>. Transmission is inhibited by default and
+the example daily schedule is disabled. Importing or fetching weather does not
 transmit anything.
 
 To make the UI available on one LAN address, for example, start it with
@@ -34,6 +64,69 @@ To make the UI available on one LAN address, for example, start it with
 on every interface.
 Authentication is not implemented in this first version, so do this only on a
 trusted management LAN.
+
+## Operator workflow
+
+### Weather catalogue
+
+`Fetch MetService` runs the downloader immediately and catalogues its output.
+`Import existing` catalogues the newest dated directory without making network
+requests. The service also fetches automatically five seconds after startup and
+every 30 minutes by default.
+
+Each product card shows the most recently catalogued file. The catalogue keeps
+content-addressed copies under `var/assets`; repeated downloads of identical
+files do not create duplicate assets.
+
+### Schedules and broadcasts
+
+A schedule contains a local time, DRM profile, and an ordered comma-separated
+product list. `Build run now` freezes the current latest asset for every listed
+product. When TX is inhibited, the run remains `ready` and nothing is submitted.
+
+To transmit a prepared run:
+
+1. Check QSSTV is online and idle.
+2. Review the exact items on the run-detail page.
+3. Select `Enable transmission` in the red TX box.
+4. Open the ready run and select `Submit to QSSTV`.
+5. Follow `queued`, `sending`, and `sent` states on the run page.
+
+For unattended daily operation, save and enable the schedule and leave TX
+enabled. Scheduled runs are idempotent per local-time slot. A missed slot is
+skipped after restart rather than replayed late.
+
+### TX inhibit
+
+TX inhibit prevents the router from submitting weather runs and pauses automatic
+BSR approval. It does not stop an item that QSSTV has already accepted, because
+QSSTV remains the owner of radio and modem state. Use QSSTV's own abort/rig
+controls for an already-active transmission.
+
+### BSR and FIX
+
+QSSTV validates received `bsr.bin` files and exposes them as `pending`. Incoming
+RF never directly causes PTT. The `BSR / FIX` page permits manual approval or
+rejection.
+
+The TX panel also provides automatic policy:
+
+| Policy | Behaviour |
+|---|---|
+| `off` | No automatic action; operator reviews every request |
+| `on` | Approve every valid pending BSR while TX is enabled |
+| `whitelist` | Approve only callsigns in the list |
+| `blacklist` | Approve all callsigns except those in the list |
+
+Callsign matching is case-insensitive. One callsign per line or comma-separated
+entries are accepted. An empty or unknown callsign does not match a whitelist;
+it does pass an empty blacklist. Automatic policy is always paused while TX is
+inhibited.
+
+Approval itself does not transmit. It changes the durable BSR state to
+`approved`; QSSTV's internal reconciler subsequently creates the FIX queue item
+and starts it only when QSSTV is safely idle. After a QSSTV restart, unfinished
+approved/FIX work returns to pending and requires fresh approval.
 
 ## Configuration
 
@@ -55,6 +148,58 @@ is persisted for each scheduled run, so a scheduler pass is idempotent. The
 router does not replay missed slots after restart.
 The running service refreshes MetService five seconds after startup and every
 30 minutes thereafter by default.
+
+## Running as a user service
+
+A sample unit is supplied in `config/weather-router.service`:
+
+```sh
+mkdir -p ~/.config/systemd/user
+install -m 0644 config/weather-router.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now weather-router.service
+systemctl --user status weather-router.service
+```
+
+Follow logs with:
+
+```sh
+journalctl --user -u weather-router.service -f
+```
+
+The sample binds specifically to `172.16.10.200`. Edit its environment lines
+if the station address or QSSTV endpoint changes.
+
+## Persistence and recovery
+
+Operational state is stored in `var/router.sqlite3` using SQLite WAL mode.
+Downloaded catalogue copies are under `var/assets`. These runtime files are
+excluded from Git and should be included in station backups.
+
+Runs and request IDs survive router restarts. Resubmitting the same item is safe
+because QSSTV returns the existing queue record for a repeated request ID. If
+QSSTV becomes unavailable during a transmission, the router preserves the last
+known item state instead of claiming success. Once QSSTV returns, reconciliation
+continues from its durable queue history.
+
+## Status API
+
+`GET /api/status` returns JSON containing router inhibit state, modem status and
+recent runs. State-changing operations are intentionally performed through the
+operator forms rather than this small read-only endpoint.
+
+## Troubleshooting
+
+- **QSSTV Offline:** verify `qsstv --headless` is running and port 7362 is
+  listening with `ss -ltnp | grep 7362`.
+- **Router unreachable:** verify it is listening on the station address with
+  `ss -ltnp | grep 8080` and check the host firewall.
+- **Run remains ready:** TX is inhibited, a required product is missing, or the
+  operator has not submitted the manual run.
+- **Run state is stale:** QSSTV was unavailable. Do not assume the transmission
+  completed; restart QSSTV and inspect the run and QSSTV history.
+- **No new weather:** run `python3 ../metservice_maps.py`, inspect its errors,
+  then select `Import existing`.
 
 ## Safety model
 
