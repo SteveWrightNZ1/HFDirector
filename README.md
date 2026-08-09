@@ -59,6 +59,17 @@ Open <http://172.16.10.200:8080/>. Transmission is inhibited by default and
 the example daily schedule is disabled. Importing or fetching weather does not
 transmit anything.
 
+The first database initialization creates an administrator web login:
+
+```text
+Username: admin
+Password: admin
+```
+
+Sign in, open `Users`, and replace the initial password before exposing the
+console beyond the trusted management LAN. Passwords are stored as salted
+Werkzeug hashes; the plaintext password is not retained.
+
 To make the UI available on one LAN address, for example, start it with
 `WEATHER_ROUTER_HOST=172.16.10.200`. Use `0.0.0.0` only when it should listen
 on every interface.

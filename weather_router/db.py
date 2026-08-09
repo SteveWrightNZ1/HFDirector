@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from werkzeug.security import generate_password_hash
+
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -112,6 +114,7 @@ CREATE TABLE IF NOT EXISTS operator_users (
     display_name TEXT NOT NULL DEFAULT '',
     callsign TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL DEFAULT 'operator',
+    password_hash TEXT NOT NULL DEFAULT '',
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -155,6 +158,9 @@ class Database:
             schedule_columns = {row[1] for row in connection.execute("PRAGMA table_info(schedules)")}
             if "source_policy" not in schedule_columns:
                 connection.execute("ALTER TABLE schedules ADD COLUMN source_policy TEXT NOT NULL DEFAULT '{}'")
+            user_columns = {row[1] for row in connection.execute("PRAGMA table_info(operator_users)")}
+            if "password_hash" not in user_columns:
+                connection.execute("ALTER TABLE operator_users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''")
             connection.execute(
                 "INSERT OR IGNORE INTO settings(key,value,updated_at) VALUES('tx_inhibit','1',?)",
                 (utcnow(),),
@@ -183,6 +189,15 @@ class Database:
                         now,
                         now,
                     ),
+                )
+            user_count = connection.execute("SELECT count(*) FROM operator_users").fetchone()[0]
+            if not user_count:
+                now = utcnow()
+                connection.execute(
+                    """INSERT INTO operator_users
+                       (username,display_name,callsign,role,password_hash,enabled,created_at,updated_at)
+                       VALUES(?,?,?,?,?,?,?,?)""",
+                    ("admin", "Administrator", "", "administrator", generate_password_hash("admin"), 1, now, now),
                 )
 
     def setting(self, key: str, default: str = "") -> str:

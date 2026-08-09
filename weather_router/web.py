@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
+import secrets
 
-from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, send_file, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from .catalogue import Catalogue
 from .config import Config
@@ -27,9 +29,52 @@ def create_app(config: Config | None = None) -> Flask:
     source = SourceManager(metservice, ecmwf)
 
     app = Flask(__name__)
-    app.secret_key = "weather-router-local-operator"
+    session_secret = db.setting("session_secret")
+    if not session_secret:
+        session_secret = secrets.token_hex(32)
+        db.set_setting("session_secret", session_secret)
+    app.secret_key = session_secret
     app.config.update(ROUTER_CONFIG=config, DB=db, CATALOGUE=catalogue, QSSTV=qsstv,
                       DIRECTOR=director, WEATHER_SOURCE=source)
+
+    @app.before_request
+    def require_login():
+        if request.endpoint in {"login", "static"}:
+            return None
+        user_id = session.get("user_id")
+        if user_id:
+            with db.connect() as connection:
+                row = connection.execute(
+                    "SELECT * FROM operator_users WHERE id=? AND enabled=1", (user_id,)
+                ).fetchone()
+            if row:
+                g.user = dict(row)
+                return None
+            session.clear()
+        return redirect(url_for("login", next=request.full_path if request.method == "GET" else ""))
+
+    @app.get("/login")
+    @app.post("/login")
+    def login():
+        if request.method == "POST":
+            username = request.form.get("username", "").strip().lower()
+            with db.connect() as connection:
+                row = connection.execute(
+                    "SELECT * FROM operator_users WHERE username=? AND enabled=1", (username,)
+                ).fetchone()
+            if row and check_password_hash(row["password_hash"], request.form.get("password", "")):
+                session.clear()
+                session["user_id"] = row["id"]
+                destination = request.args.get("next", "")
+                safe_destination = destination.startswith("/") and not destination.startswith("//")
+                return redirect(destination if safe_destination else url_for("dashboard"))
+            flash("Invalid username or password")
+        return render_template("login.html")
+
+    @app.post("/logout")
+    def logout():
+        session.clear()
+        return redirect(url_for("login"))
 
     @app.get("/")
     def dashboard():
@@ -150,12 +195,16 @@ def create_app(config: Config | None = None) -> Flask:
 
     @app.get("/users")
     def users_page():
+        if g.user["role"] != "administrator":
+            abort(403)
         with db.connect() as connection:
             users = db.rows(connection.execute("SELECT * FROM operator_users ORDER BY username").fetchall())
         return render_template("users.html", users=users)
 
     @app.post("/users/<int:user_id>")
     def save_user(user_id: int):
+        if g.user["role"] != "administrator":
+            abort(403)
         values = request.form
         username = values.get("username", "").strip().lower()
         if not username:
@@ -164,6 +213,7 @@ def create_app(config: Config | None = None) -> Flask:
         role = values.get("role", "operator")
         if role not in {"viewer", "operator", "administrator"}:
             role = "operator"
+        password = values.get("password", "")
         data = (username, values.get("display_name", "").strip(),
                 values.get("callsign", "").strip().upper(), role,
                 1 if values.get("enabled") else 0)
@@ -175,10 +225,19 @@ def create_app(config: Config | None = None) -> Flask:
                         """UPDATE operator_users SET username=?,display_name=?,callsign=?,role=?,enabled=?,
                            updated_at=? WHERE id=?""", (*data, now, user_id)
                     )
+                    if password:
+                        connection.execute(
+                            "UPDATE operator_users SET password_hash=?,updated_at=? WHERE id=?",
+                            (generate_password_hash(password), now, user_id),
+                        )
                 else:
+                    if not password:
+                        flash("A password is required for a new user")
+                        return redirect(url_for("users_page"))
                     connection.execute(
-                        """INSERT INTO operator_users(username,display_name,callsign,role,enabled,created_at,
-                           updated_at) VALUES(?,?,?,?,?,?,?)""", (*data, now, now)
+                        """INSERT INTO operator_users(username,display_name,callsign,role,enabled,password_hash,
+                           created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)""",
+                        (*data, generate_password_hash(password), now, now)
                     )
             flash("User saved")
         except sqlite3.IntegrityError:
