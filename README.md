@@ -29,7 +29,9 @@ Open <http://127.0.0.1:8080/>. Transmission is inhibited by default and the
 example daily schedule is disabled. Importing or fetching weather does not
 transmit anything.
 
-To make the UI available on the LAN, set `WEATHER_ROUTER_HOST=0.0.0.0`.
+To make the UI available on one LAN address, for example, start it with
+`WEATHER_ROUTER_HOST=172.16.10.200`. Use `0.0.0.0` only when it should listen
+on every interface.
 Authentication is not implemented in this first version, so do this only on a
 trusted management LAN.
 

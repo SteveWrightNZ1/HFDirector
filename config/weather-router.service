@@ -10,6 +10,7 @@ ExecStart=/usr/bin/python3 -m weather_router serve
 Restart=on-failure
 RestartSec=5
 Environment=QSSTV_XMLRPC_URL=http://127.0.0.1:7362
+Environment=WEATHER_ROUTER_HOST=172.16.10.200
 
 [Install]
 WantedBy=default.target
