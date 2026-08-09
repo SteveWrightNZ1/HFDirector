@@ -1,0 +1,15 @@
+[Unit]
+Description=Weather broadcast router
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/transmission/weather-router
+ExecStart=/usr/bin/python3 -m weather_router serve
+Restart=on-failure
+RestartSec=5
+Environment=QSSTV_XMLRPC_URL=http://127.0.0.1:7362
+
+[Install]
+WantedBy=default.target

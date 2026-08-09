@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div><p class="eyebrow">Operator console · {{ timezone }}</p><h1>Weather broadcast director</h1></div>
+  <div class="safety {{ 'inhibited' if inhibited else 'enabled' }}">
+    <strong>TX {{ 'INHIBITED' if inhibited else 'ENABLED' }}</strong>
+    <form method="post" action="{{ url_for('inhibit') }}">
+      <input type="hidden" name="inhibited" value="{{ '0' if inhibited else '1' }}">
+      <button class="{{ 'danger' if inhibited else '' }}">{{ 'Enable transmission' if inhibited else 'Inhibit now' }}</button>
+    </form>
+  </div>
+</section>
+
+<section class="grid status-grid">
+  <article><p class="eyebrow">QSSTV modem</p><h2>{{ 'Offline' if modem_error else ('Transmitting' if modem.busy else 'Idle') }}</h2><p>{{ modem_error or (modem.queued|string + ' queued') }}</p></article>
+  <article><p class="eyebrow">Pending BSR</p><h2>{{ pending_bsr|length }}</h2><p><a href="{{ url_for('bsr_list') }}">Review requests</a></p></article>
+  <article><p class="eyebrow">Weather products</p><h2>{{ products|length }}</h2><p>Latest catalogue entries</p></article>
+</section>
+
+<section>
+  <div class="section-head"><div><p class="eyebrow">Sources</p><h2>Weather catalogue</h2></div>
+    <div class="actions"><form method="post" action="{{ url_for('import_catalogue') }}"><button>Import existing</button></form><form method="post" action="{{ url_for('fetch_weather') }}"><button>Fetch MetService</button></form></div>
+  </div>
+  <div class="product-grid">
+    {% for product in products %}
+    <article class="product">
+      {% if product.media_type.startswith('image/') %}<a href="{{ url_for('asset', asset_id=product.id) }}"><img src="{{ url_for('asset', asset_id=product.id) }}" alt="{{ product.product }}"></a>{% endif %}
+      <div><h3>{{ product.product }}</h3><p>{{ product.size }} bytes · {{ product.width or '–' }}×{{ product.height or '–' }}</p><p class="muted">{{ product.source_time or product.observed_at }}</p></div>
+    </article>
+    {% else %}<p>No products imported yet.</p>{% endfor %}
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Planning</p><h2>Schedules</h2>
+  {% for schedule in schedules %}
+  <form class="schedule" method="post" action="{{ url_for('save_schedule', schedule_id=schedule.id) }}">
+    <label>Name<input name="name" value="{{ schedule.name }}"></label>
+    <label>Local time<input name="local_time" type="time" value="{{ schedule.local_time }}"></label>
+    <label>DRM profile<input name="profile" value="{{ schedule.profile }}"></label>
+    <label class="wide">Products, in order<input name="products" value="{{ schedule.products }}"></label>
+    <label><input name="enabled" type="checkbox" value="1" {{ 'checked' if schedule.enabled }}> Daily schedule enabled</label>
+    <input name="weekdays" type="hidden" value="{{ schedule.weekdays }}">
+    <div class="actions"><button>Save</button><button formaction="{{ url_for('run_now', schedule_id=schedule.id) }}">Build run now</button></div>
+  </form>
+  {% endfor %}
+</section>
+
+<section>
+  <p class="eyebrow">Audit trail</p><h2>Recent runs</h2>
+  <table><thead><tr><th>Run</th><th>Schedule</th><th>Slot</th><th>State</th><th>Created</th></tr></thead><tbody>
+  {% for run in runs %}<tr><td><a href="{{ url_for('run_detail', run_id=run.id) }}">#{{ run.id }}</a></td><td>{{ run.schedule_name }}</td><td>{{ run.slot }}</td><td><span class="state {{ run.state }}">{{ run.state }}</span></td><td>{{ run.created_at }}</td></tr>{% else %}<tr><td colspan="5">No runs yet.</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endblock %}

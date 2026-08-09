@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}BSR / FIX · Weather Router{% endblock %}
+{% block content %}
+<p class="eyebrow">Operator approval</p><h1>BSR / FIX requests</h1>
+<p>Receiving a BSR cannot key the transmitter. Approval records intent in QSSTV; its internal reconciler queues FIX only when safe.</p>
+{% if error %}<div class="messages"><div>{{ error }}</div></div>{% endif %}
+<table><thead><tr><th>Received</th><th>Callsign</th><th>ID</th><th>State</th><th>Decision</th></tr></thead><tbody>
+{% for bsr in requests %}<tr><td>{{ bsr.created_at }}</td><td>{{ bsr.callsign or 'Unknown' }}</td><td><code>{{ bsr.id }}</code></td><td><span class="state {{ bsr.state }}">{{ bsr.state }}</span></td><td>
+{% if bsr.state == 'pending' %}<form class="decision" method="post"><input name="note" placeholder="Operator note"><button formaction="{{ url_for('approve_bsr', bsr_id=bsr.id) }}" class="danger">Approve FIX</button><button formaction="{{ url_for('reject_bsr', bsr_id=bsr.id) }}">Reject</button></form>{% else %}—{% endif %}
+</td></tr>{% else %}<tr><td colspan="5">No BSR requests.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}
