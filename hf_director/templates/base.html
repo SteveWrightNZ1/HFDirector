@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Weather Router{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='router.css') }}">
+  <title>{% block title %}HFDirector{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='director.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='management.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
 </head>
 <body>
   <header>
-    <a class="brand" href="{{ url_for('dashboard') }}">Weather Router</a>
+    <a class="brand" href="{{ url_for('dashboard') }}">HFDirector</a>
     <nav><a href="{{ url_for('dashboard') }}">Dashboard</a><a href="{{ url_for('radios_page') }}">Radios</a><a href="{{ url_for('audio_page') }}">Audio</a><a href="{{ url_for('source_viewer') }}">Sources</a><a href="{{ url_for('schedules_page') }}">Schedules</a>{% if g.user and g.user.role == 'administrator' %}<a href="{{ url_for('users_page') }}">Users</a>{% endif %}<a href="{{ url_for('bsr_list') }}">BSR / FIX</a><form method="post" action="{{ url_for('logout') }}"><button class="nav-user">{{ g.user.callsign or g.user.username }} · Sign out</button></form></nav>
   </header>
   <main>

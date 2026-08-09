@@ -1,17 +1,18 @@
 [project]
-name = "weather-router"
+name = "hfdirector"
 version = "0.1.0"
-description = "Operator-controlled weather broadcast director"
+description = "HF station, modem, and weather broadcast director"
 requires-python = ">=3.11"
 license = {text = "GPL-3.0-or-later"}
 dependencies = ["Flask>=3.0", "requests>=2.31", "Pillow>=10.0"]
 
 [project.scripts]
-weather-router = "weather_router.cli:main"
+hfdirector = "hf_director.cli:main"
+weather-router = "hf_director.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]
-weather_router = ["templates/*.html", "static/*.css"]
+hf_director = ["templates/*.html", "static/*.css"]

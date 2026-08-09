@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block title %}Radios · Weather Router{% endblock %}{% block content %}
+{% extends "base.html" %}{% block title %}Radios · HFDirector{% endblock %}{% block content %}
 <section class="page-heading"><div><p class="eyebrow">Station hardware</p><h1>Radios</h1><p>CAT is optional; QSSTV remains responsible for PTT during transmission.</p></div><span class="count-badge">{{ radios|length }} configured</span></section>
 <div class="config-grid">
 {% for radio in radios %}<form class="config-card" method="post" action="{{ url_for('save_radio', radio_id=radio.id) }}"><div class="card-heading"><h2>{{ radio.name }}</h2><span class="state {{ 'enabled' if radio.enabled else '' }}">{{ 'enabled' if radio.enabled else 'disabled' }}</span></div>

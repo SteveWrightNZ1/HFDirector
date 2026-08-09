@@ -1,16 +1,16 @@
 [Unit]
-Description=Weather broadcast router
+Description=HFDirector station and broadcast controller
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/transmission/weather-router
-ExecStart=/usr/bin/python3 -m weather_router serve
+WorkingDirectory=%h/transmission/HFDirector
+ExecStart=/usr/bin/python3 -m hf_director serve
 Restart=on-failure
 RestartSec=5
 Environment=QSSTV_XMLRPC_URL=http://127.0.0.1:7362
-Environment=WEATHER_ROUTER_HOST=172.16.10.200
+Environment=HFDIRECTOR_HOST=172.16.10.200
 
 [Install]
 WantedBy=default.target

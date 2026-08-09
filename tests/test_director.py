@@ -6,10 +6,10 @@ from pathlib import Path
 
 from PIL import Image
 
-from weather_router.catalogue import Catalogue
-from weather_router.db import Database
-from weather_router.director import Director
-from weather_router.registry import provider_order
+from hf_director.catalogue import Catalogue
+from hf_director.db import Database
+from hf_director.director import Director
+from hf_director.registry import provider_order
 
 
 class FakeQSSTV:

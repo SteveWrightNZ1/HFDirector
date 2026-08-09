@@ -1,6 +1,6 @@
 # Architecture and invariants
 
-Weather Router is a director, not a modem. It does not manipulate sound devices,
+HFDirector is a director, not a modem. It does not manipulate sound devices,
 rig control, PTT, DRM frames, or QSSTV internals.
 
 ```text

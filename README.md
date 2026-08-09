@@ -1,6 +1,6 @@
-# Weather Router
+# HFDirector
 
-Weather Router is an operator-controlled director for scheduled weather-file
+HFDirector is an operator-controlled director for scheduled weather-file
 broadcasts. It is deliberately separate from QSSTV: weather acquisition,
 schedules and operator decisions live here; modulation, radio control and the
 final TX state transition remain in QSSTV.
@@ -11,7 +11,7 @@ may pin each one to a provider or use an ordered automatic fallback.
 
 ## What it does
 
-Weather Router runs continuously and:
+HFDirector runs continuously and:
 
 1. Refreshes the configured MetService and ECMWF sources shortly after startup
    and at a configurable interval.
@@ -43,13 +43,13 @@ QSSTV should already be running, normally with:
 Then start the router:
 
 ```sh
-cd ~/transmission/weather-router
-python3 -m weather_router import
-python3 -m weather_router serve
+cd ~/transmission/HFDirector
+python3 -m hf_director import
+python3 -m hf_director serve
 ```
 
-For the current workstation, `~/transmission/start` launches only Weather
-Router. Its modem supervisor keeps FLDigi running as the idle RSID command
+For the current workstation, `~/transmission/start` launches only HFDirector.
+Its modem supervisor keeps FLDigi running as the idle RSID command
 listener, using `~/transmission/.fldigi` and local XML-RPC port 7363. FLDigi is
 forced into receive-only mode.
 
@@ -65,8 +65,8 @@ and FLDigi are the first two adapters rather than permanent architectural roles.
 For this station the router is started with:
 
 ```sh
-cd ~/transmission/weather-router
-WEATHER_ROUTER_HOST=172.16.10.200 python3 -m weather_router serve
+cd ~/transmission/HFDirector
+HFDIRECTOR_HOST=172.16.10.200 python3 -m hf_director serve
 ```
 
 Open <http://172.16.10.200:8080/>. Transmission is inhibited by default and
@@ -85,7 +85,7 @@ console beyond the trusted management LAN. Passwords are stored as salted
 Werkzeug hashes; the plaintext password is not retained.
 
 To make the UI available on one LAN address, for example, start it with
-`WEATHER_ROUTER_HOST=172.16.10.200`. Use `0.0.0.0` only when it should listen
+`HFDIRECTOR_HOST=172.16.10.200`. Use `0.0.0.0` only when it should listen
 on every interface.
 Authentication is not implemented in this first version, so do this only on a
 trusted management LAN.
@@ -171,13 +171,13 @@ Environment variables:
 | Variable | Default |
 |---|---|
 | `QSSTV_XMLRPC_URL` | `http://127.0.0.1:7362` |
-| `WEATHER_ROUTER_HOST` | `127.0.0.1` |
-| `WEATHER_ROUTER_PORT` | `8080` |
-| `WEATHER_ROUTER_TIMEZONE` | `Pacific/Auckland` |
-| `WEATHER_ROUTER_DB` | `./var/router.sqlite3` |
-| `WEATHER_ROUTER_ASSETS` | `./var/assets` |
-| `WEATHER_ROUTER_IMPORT` | `../metservice-maps` |
-| `WEATHER_ROUTER_FETCH_SECONDS` | `1800` |
+| `HFDIRECTOR_HOST` | `127.0.0.1` |
+| `HFDIRECTOR_PORT` | `8080` |
+| `HFDIRECTOR_TIMEZONE` | `Pacific/Auckland` |
+| `HFDIRECTOR_DB` | `./var/router.sqlite3` |
+| `HFDIRECTOR_ASSETS` | `./var/assets` |
+| `HFDIRECTOR_IMPORT` | `../metservice-maps` |
+| `HFDIRECTOR_FETCH_SECONDS` | `1800` |
 
 Schedules use local wall-clock time and explicit weekdays. A unique local slot
 is persisted for each scheduled run, so a scheduler pass is idempotent. The
@@ -188,20 +188,20 @@ paced to respect the OpenCharts service.
 
 ## Running as a user service
 
-A sample unit is supplied in `config/weather-router.service`:
+A sample unit is supplied in `config/hfdirector.service`:
 
 ```sh
 mkdir -p ~/.config/systemd/user
-install -m 0644 config/weather-router.service ~/.config/systemd/user/
+install -m 0644 config/hfdirector.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now weather-router.service
-systemctl --user status weather-router.service
+systemctl --user enable --now hfdirector.service
+systemctl --user status hfdirector.service
 ```
 
 Follow logs with:
 
 ```sh
-journalctl --user -u weather-router.service -f
+journalctl --user -u hfdirector.service -f
 ```
 
 The sample binds specifically to `172.16.10.200`. Edit its environment lines
@@ -254,6 +254,6 @@ operator forms rather than this small read-only endpoint.
 ## Tests
 
 ```sh
-cd ~/transmission/weather-router
+cd ~/transmission/HFDirector
 python3 -m unittest discover -s tests -v
 ```

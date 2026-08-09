@@ -26,7 +26,7 @@ def components(config: Config):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Operator-controlled weather broadcast director")
+    parser = argparse.ArgumentParser(description="HFDirector station and broadcast controller")
     parser.add_argument("command", nargs="?", choices=("serve", "init", "import"), default="serve")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()

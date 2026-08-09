@@ -300,7 +300,7 @@ class Director:
 
 class Scheduler(threading.Thread):
     def __init__(self, director: Director, poll_seconds: float, weather_source=None, fetch_seconds=1800):
-        super().__init__(name="weather-router-scheduler", daemon=True)
+        super().__init__(name="hfdirector-scheduler", daemon=True)
         self.director = director
         self.poll_seconds = poll_seconds
         self.weather_source = weather_source
