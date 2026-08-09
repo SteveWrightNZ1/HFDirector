@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, url_for
 
 from .catalogue import Catalogue
@@ -71,6 +73,125 @@ def create_app(config: Config | None = None) -> Flask:
             ecmwf_products=ecmwf.products(),
         )
 
+    @app.get("/radios")
+    def radios_page():
+        with db.connect() as connection:
+            radios = db.rows(connection.execute("SELECT * FROM radios ORDER BY name,id").fetchall())
+        return render_template("radios.html", radios=radios)
+
+    @app.post("/radios/<int:radio_id>")
+    def save_radio(radio_id: int):
+        values = request.form
+        now = utcnow()
+        data = (
+            values.get("name", "").strip(), values.get("control_type", "rigctld"),
+            values.get("control_endpoint", "").strip(), values.get("model", "").strip(),
+            values.get("ptt_type", "serial"), values.get("ptt_device", "").strip(),
+            1 if values.get("enabled") else 0, values.get("notes", "").strip(),
+        )
+        if not data[0]:
+            flash("Radio name is required")
+        else:
+            with db.connect() as connection:
+                if radio_id:
+                    connection.execute(
+                        """UPDATE radios SET name=?,control_type=?,control_endpoint=?,model=?,ptt_type=?,
+                           ptt_device=?,enabled=?,notes=?,updated_at=? WHERE id=?""", (*data, now, radio_id)
+                    )
+                else:
+                    connection.execute(
+                        """INSERT INTO radios(name,control_type,control_endpoint,model,ptt_type,ptt_device,
+                           enabled,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                        (*data, now, now),
+                    )
+            flash("Radio saved")
+        return redirect(url_for("radios_page"))
+
+    @app.get("/audio")
+    def audio_page():
+        with db.connect() as connection:
+            interfaces = db.rows(connection.execute(
+                """SELECT a.*,r.name radio_name FROM audio_interfaces a
+                   LEFT JOIN radios r ON r.id=a.radio_id ORDER BY a.name,a.id"""
+            ).fetchall())
+            radios = db.rows(connection.execute("SELECT id,name FROM radios ORDER BY name").fetchall())
+        return render_template("audio.html", interfaces=interfaces, radios=radios)
+
+    @app.post("/audio/<int:interface_id>")
+    def save_audio(interface_id: int):
+        values = request.form
+        try:
+            capture = max(0, min(150, int(values.get("capture_gain", "100"))))
+            playback = max(0, min(150, int(values.get("playback_gain", "100"))))
+        except ValueError:
+            flash("Audio gains must be numbers")
+            return redirect(url_for("audio_page"))
+        name, device = values.get("name", "").strip(), values.get("device", "").strip()
+        if not name or not device:
+            flash("Audio name and device are required")
+            return redirect(url_for("audio_page"))
+        radio_id = int(values["radio_id"]) if values.get("radio_id") else None
+        data = (name, device, radio_id, capture, playback, 1 if values.get("enabled") else 0,
+                values.get("notes", "").strip())
+        now = utcnow()
+        with db.connect() as connection:
+            if interface_id:
+                connection.execute(
+                    """UPDATE audio_interfaces SET name=?,device=?,radio_id=?,capture_gain=?,playback_gain=?,
+                       enabled=?,notes=?,updated_at=? WHERE id=?""", (*data, now, interface_id)
+                )
+            else:
+                connection.execute(
+                    """INSERT INTO audio_interfaces(name,device,radio_id,capture_gain,playback_gain,enabled,
+                       notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)""", (*data, now, now)
+                )
+        flash("Audio interface saved")
+        return redirect(url_for("audio_page"))
+
+    @app.get("/users")
+    def users_page():
+        with db.connect() as connection:
+            users = db.rows(connection.execute("SELECT * FROM operator_users ORDER BY username").fetchall())
+        return render_template("users.html", users=users)
+
+    @app.post("/users/<int:user_id>")
+    def save_user(user_id: int):
+        values = request.form
+        username = values.get("username", "").strip().lower()
+        if not username:
+            flash("Username is required")
+            return redirect(url_for("users_page"))
+        role = values.get("role", "operator")
+        if role not in {"viewer", "operator", "administrator"}:
+            role = "operator"
+        data = (username, values.get("display_name", "").strip(),
+                values.get("callsign", "").strip().upper(), role,
+                1 if values.get("enabled") else 0)
+        now = utcnow()
+        try:
+            with db.connect() as connection:
+                if user_id:
+                    connection.execute(
+                        """UPDATE operator_users SET username=?,display_name=?,callsign=?,role=?,enabled=?,
+                           updated_at=? WHERE id=?""", (*data, now, user_id)
+                    )
+                else:
+                    connection.execute(
+                        """INSERT INTO operator_users(username,display_name,callsign,role,enabled,created_at,
+                           updated_at) VALUES(?,?,?,?,?,?,?)""", (*data, now, now)
+                    )
+            flash("User saved")
+        except sqlite3.IntegrityError:
+            flash("That username is already in use")
+        return redirect(url_for("users_page"))
+
+    @app.get("/schedules")
+    def schedules_page():
+        return render_template(
+            "schedules.html", schedules=director.schedules(), sources=SOURCES,
+            products=PRODUCTS, timezone=config.timezone,
+        )
+
     @app.post("/sources/<provider>/fetch")
     def fetch_source(provider: str):
         product = request.form.get("product") or None
@@ -129,7 +250,7 @@ def create_app(config: Config | None = None) -> Flask:
             flash("Schedule saved")
         except (ValueError, KeyError) as exc:
             flash(str(exc))
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("schedules_page"))
 
     @app.post("/schedules/<int:schedule_id>/run")
     def run_now(schedule_id: int):
@@ -138,7 +259,7 @@ def create_app(config: Config | None = None) -> Flask:
             flash(f"Run {run['id']} created in state {run['state']}")
         except Exception as exc:
             flash(str(exc))
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("schedules_page"))
 
     @app.post("/runs/<int:run_id>/submit")
     def submit_run(run_id: int):

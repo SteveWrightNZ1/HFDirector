@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Weather Router{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='router.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='management.css') }}">
 </head>
 <body>
   <header>
     <a class="brand" href="{{ url_for('dashboard') }}">Weather Router</a>
-    <nav><a href="{{ url_for('dashboard') }}">Dashboard</a><a href="{{ url_for('source_viewer') }}">Sources</a><a href="{{ url_for('bsr_list') }}">BSR / FIX</a></nav>
+    <nav><a href="{{ url_for('dashboard') }}">Dashboard</a><a href="{{ url_for('radios_page') }}">Radios</a><a href="{{ url_for('audio_page') }}">Audio</a><a href="{{ url_for('source_viewer') }}">Sources</a><a href="{{ url_for('schedules_page') }}">Schedules</a><a href="{{ url_for('users_page') }}">Users</a><a href="{{ url_for('bsr_list') }}">BSR / FIX</a></nav>
   </header>
   <main>
     {% with messages = get_flashed_messages() %}{% if messages %}

@@ -78,6 +78,44 @@ CREATE TABLE IF NOT EXISTS bsr_decisions (
     note TEXT,
     decided_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS radios (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    control_type TEXT NOT NULL DEFAULT 'rigctld',
+    control_endpoint TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    ptt_type TEXT NOT NULL DEFAULT 'serial',
+    ptt_device TEXT NOT NULL DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audio_interfaces (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    device TEXT NOT NULL,
+    radio_id INTEGER REFERENCES radios(id) ON DELETE SET NULL,
+    capture_gain INTEGER NOT NULL DEFAULT 100,
+    playback_gain INTEGER NOT NULL DEFAULT 100,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS operator_users (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL DEFAULT '',
+    callsign TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT 'operator',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 

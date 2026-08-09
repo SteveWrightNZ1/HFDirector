@@ -92,7 +92,21 @@ class Director:
             product: values.get(f"source__{product}", "automatic")
             for product in products.split(",")
         }
+        now = utcnow()
         with self.db.connect() as connection:
+            if schedule_id == 0:
+                connection.execute(
+                    """INSERT INTO schedules
+                       (name,enabled,local_time,weekdays,products,source_policy,profile,created_at,updated_at)
+                       VALUES(?,?,?,?,?,?,?,?,?)""",
+                    (
+                        values["name"].strip(), 1 if values.get("enabled") else 0, local_time,
+                        values.get("weekdays", "0,1,2,3,4,5,6"), products,
+                        json.dumps(source_policy, sort_keys=True), values.get("profile", "1").strip(),
+                        now, now,
+                    ),
+                )
+                return
             connection.execute(
                 """UPDATE schedules SET name=?,enabled=?,local_time=?,weekdays=?,products=?,source_policy=?,profile=?,updated_at=?
                    WHERE id=?""",
@@ -104,7 +118,7 @@ class Director:
                     products,
                     json.dumps(source_policy, sort_keys=True),
                     values.get("profile", "1").strip(),
-                    utcnow(),
+                    now,
                     schedule_id,
                 ),
             )

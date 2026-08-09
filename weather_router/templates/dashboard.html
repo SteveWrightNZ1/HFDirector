@@ -30,45 +30,6 @@
 </section>
 
 <section>
-  <div class="section-head"><div><p class="eyebrow">Sources</p><h2>Weather catalogue</h2></div>
-    <div class="actions"><form method="post" action="{{ url_for('import_catalogue') }}"><button>Import existing</button></form><form method="post" action="{{ url_for('fetch_weather') }}"><button>Fetch MetService</button></form></div>
-  </div>
-  <div class="product-grid">
-    {% for product in products %}
-    <article class="product">
-      {% if product.media_type.startswith('image/') %}<a href="{{ url_for('asset', asset_id=product.id) }}"><img src="{{ url_for('asset', asset_id=product.id) }}" alt="{{ product.product }}"></a>{% endif %}
-      <div><h3>{{ product.product }}</h3><p><span class="state">{{ product.source }}</span> · {{ product.size }} bytes · {{ product.width or '–' }}×{{ product.height or '–' }}</p><p class="muted">{{ product.source_time or product.observed_at }}</p></div>
-    </article>
-    {% else %}<p>No products imported yet.</p>{% endfor %}
-  </div>
-</section>
-
-<section>
-  <p class="eyebrow">Planning</p><h2>Schedules</h2>
-  {% for schedule in schedules %}
-  <form class="schedule" method="post" action="{{ url_for('save_schedule', schedule_id=schedule.id) }}">
-    <label>Name<input name="name" value="{{ schedule.name }}"></label>
-    <label>Local time<input name="local_time" type="time" value="{{ schedule.local_time }}"></label>
-    <label>DRM profile<input name="profile" value="{{ schedule.profile }}"></label>
-    <label class="wide">Products, in order<input name="products" value="{{ schedule.products }}"></label>
-    <div class="wide source-selectors"><strong>Source policy per product</strong>
-      {% for product in schedule.products.split(',') %}<label>{{ product }}
-        <select name="source__{{ product }}">
-          {% for provider in ['automatic','metservice','ecmwf','noaa'] %}
-          <option value="{{ provider }}" {{ 'selected' if schedule.sources.get(product, 'automatic') == provider }}>{{ source_registry[provider].name }}</option>
-          {% endfor %}
-        </select>
-      </label>{% endfor %}
-      <small>Save once after changing the product list to rebuild these selectors.</small>
-    </div>
-    <label><input name="enabled" type="checkbox" value="1" {{ 'checked' if schedule.enabled }}> Daily schedule enabled</label>
-    <input name="weekdays" type="hidden" value="{{ schedule.weekdays }}">
-    <div class="actions"><button>Save</button><button formaction="{{ url_for('run_now', schedule_id=schedule.id) }}">Build run now</button></div>
-  </form>
-  {% endfor %}
-</section>
-
-<section>
   <p class="eyebrow">Audit trail</p><h2>Recent runs</h2>
   <table><thead><tr><th>Run</th><th>Schedule</th><th>Slot</th><th>State</th><th>Created</th></tr></thead><tbody>
   {% for run in runs %}<tr><td><a href="{{ url_for('run_detail', run_id=run.id) }}">#{{ run.id }}</a></td><td>{{ run.schedule_name }}</td><td>{{ run.slot }}</td><td><span class="state {{ run.state }}">{{ run.state }}</span></td><td>{{ run.created_at }}</td></tr>{% else %}<tr><td colspan="5">No runs yet.</td></tr>{% endfor %}
