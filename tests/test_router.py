@@ -14,6 +14,8 @@ from weather_router.director import Director
 class FakeQSSTV:
     def __init__(self):
         self.items = {}
+        self.pending_bsr = []
+        self.approved = []
 
     def send_file(self, request_id, path, profile):
         queue_id = f"tx-{len(self.items) + 1}"
@@ -22,6 +24,14 @@ class FakeQSSTV:
 
     def tx_get(self, queue_id):
         return {"ok": True, "id": queue_id, "state": self.items[queue_id]}
+
+    def bsr(self, state=""):
+        return list(self.pending_bsr) if state in {"", "pending"} else []
+
+    def approve_bsr(self, bsr_id):
+        self.approved.append(bsr_id)
+        self.pending_bsr = [item for item in self.pending_bsr if item["id"] != bsr_id]
+        return {"ok": True, "id": bsr_id, "state": "approved"}
 
 
 class RouterTest(unittest.TestCase):
@@ -69,6 +79,26 @@ class RouterTest(unittest.TestCase):
         first = self.director.create_run(1, "2026-08-09T09:00+1200")
         second = self.director.create_run(1, "2026-08-09T09:00+1200")
         self.assertEqual(first["id"], second["id"])
+
+    def test_bsr_policy_is_paused_by_inhibit(self):
+        self.modem.pending_bsr = [{"id": "bsr-1", "callsign": "ZL1ABC"}]
+        self.director.set_bsr_policy("on", "")
+        self.director.reconcile_bsr_policy()
+        self.assertEqual(self.modem.approved, [])
+
+    def test_bsr_whitelist_and_blacklist(self):
+        self.director.set_inhibit(False)
+        self.modem.pending_bsr = [
+            {"id": "bsr-1", "callsign": "zl1abc"},
+            {"id": "bsr-2", "callsign": "ZL2XYZ"},
+        ]
+        self.director.set_bsr_policy("whitelist", "ZL1ABC")
+        self.director.reconcile_bsr_policy()
+        self.assertEqual(self.modem.approved, ["bsr-1"])
+        self.director.set_bsr_policy("blacklist", "ZL2XYZ")
+        self.modem.pending_bsr.append({"id": "bsr-3", "callsign": "ZL3OK"})
+        self.director.reconcile_bsr_policy()
+        self.assertEqual(self.modem.approved, ["bsr-1", "bsr-3"])
 
 
 if __name__ == "__main__":

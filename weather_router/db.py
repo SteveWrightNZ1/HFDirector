@@ -106,6 +106,14 @@ class Database:
                 "INSERT OR IGNORE INTO settings(key,value,updated_at) VALUES('tx_inhibit','1',?)",
                 (utcnow(),),
             )
+            connection.execute(
+                "INSERT OR IGNORE INTO settings(key,value,updated_at) VALUES('bsr_policy','off',?)",
+                (utcnow(),),
+            )
+            connection.execute(
+                "INSERT OR IGNORE INTO settings(key,value,updated_at) VALUES('bsr_callsigns','',?)",
+                (utcnow(),),
+            )
             count = connection.execute("SELECT count(*) FROM schedules").fetchone()[0]
             if not count:
                 now = utcnow()

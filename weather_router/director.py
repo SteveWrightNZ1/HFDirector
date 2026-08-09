@@ -29,6 +29,50 @@ class Director:
     def set_inhibit(self, inhibited: bool) -> None:
         self.db.set_setting("tx_inhibit", "1" if inhibited else "0")
 
+    @property
+    def bsr_policy(self) -> str:
+        value = self.db.setting("bsr_policy", "off")
+        return value if value in {"off", "on", "whitelist", "blacklist"} else "off"
+
+    @property
+    def bsr_callsigns(self) -> list[str]:
+        raw = self.db.setting("bsr_callsigns", "")
+        return sorted({part.strip().upper() for part in raw.replace(",", "\n").splitlines() if part.strip()})
+
+    def set_bsr_policy(self, policy: str, callsigns: str) -> None:
+        if policy not in {"off", "on", "whitelist", "blacklist"}:
+            raise ValueError("Unknown BSR/FIX policy")
+        normalised = "\n".join(sorted({
+            part.strip().upper() for part in callsigns.replace(",", "\n").splitlines() if part.strip()
+        }))
+        self.db.set_setting("bsr_policy", policy)
+        self.db.set_setting("bsr_callsigns", normalised)
+
+    def reconcile_bsr_policy(self) -> None:
+        """Approve matching pending BSRs; never act while TX is inhibited."""
+        policy = self.bsr_policy
+        if self.inhibited or policy == "off":
+            return
+        listed = set(self.bsr_callsigns)
+        for request in self.qsstv.bsr("pending"):
+            callsign = request.get("callsign", "").strip().upper()
+            approve = (
+                policy == "on"
+                or (policy == "whitelist" and callsign in listed)
+                or (policy == "blacklist" and callsign not in listed)
+            )
+            if not approve:
+                continue
+            result = self.qsstv.approve_bsr(request["id"])
+            if result.get("ok"):
+                with self.db.connect() as connection:
+                    connection.execute(
+                        """INSERT INTO bsr_decisions(bsr_id,decision,note,decided_at) VALUES(?,?,?,?)
+                           ON CONFLICT(bsr_id) DO UPDATE SET decision=excluded.decision,note=excluded.note,
+                           decided_at=excluded.decided_at""",
+                        (request["id"], "approved", f"automatic:{policy}", utcnow()),
+                    )
+
     def schedules(self) -> list[dict]:
         with self.db.connect() as connection:
             return self.db.rows(connection.execute("SELECT * FROM schedules ORDER BY id").fetchall())
@@ -238,6 +282,7 @@ class Scheduler(threading.Thread):
             try:
                 self.director.refresh_active()
                 self.director.due_schedules()
+                self.director.reconcile_bsr_policy()
                 if self.weather_source and time.monotonic() >= self.next_fetch:
                     result = self.weather_source.refresh()
                     if not result.get("ok"):

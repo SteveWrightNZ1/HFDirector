@@ -59,7 +59,10 @@ The running service refreshes MetService five seconds after startup and every
 ## Safety model
 
 - The router starts with global TX inhibit asserted.
-- A received BSR is displayed but never approved automatically.
+- A received BSR is displayed and is not approved automatically by default.
+- Automatic BSR/FIX policy can be `off`, `on`, `whitelist`, or `blacklist`.
+  It is paused whenever global TX inhibit is asserted. Callsigns are compared
+  case-insensitively after whitespace is removed.
 - QSSTV's BSR approval call only records approval; QSSTV's internal reconciler
   creates the FIX queue item later.
 - Every broadcast is an immutable manifest of exact catalogue assets.

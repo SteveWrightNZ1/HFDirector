@@ -8,6 +8,18 @@
       <input type="hidden" name="inhibited" value="{{ '0' if inhibited else '1' }}">
       <button class="{{ 'danger' if inhibited else '' }}">{{ 'Enable transmission' if inhibited else 'Inhibit now' }}</button>
     </form>
+    <form class="bsr-policy" method="post" action="{{ url_for('bsr_policy') }}">
+      <label>Automatic BSR/FIX
+        <select name="policy">
+          {% for value in ['off','on','whitelist','blacklist'] %}<option value="{{ value }}" {{ 'selected' if bsr_policy == value }}>{{ value }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Callsign list
+        <textarea name="callsigns" rows="3" placeholder="ZL1ABC&#10;ZL2XYZ">{{ bsr_callsigns }}</textarea>
+      </label>
+      <button>Save BSR policy</button>
+      <small>{{ 'Paused while TX is inhibited.' if inhibited else 'Policy is active.' }}</small>
+    </form>
   </div>
 </section>
 

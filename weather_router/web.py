@@ -39,6 +39,8 @@ def create_app(config: Config | None = None) -> Flask:
         return render_template(
             "dashboard.html",
             inhibited=director.inhibited,
+            bsr_policy=director.bsr_policy,
+            bsr_callsigns="\n".join(director.bsr_callsigns),
             modem=modem,
             modem_error=modem_error,
             products=catalogue.products(),
@@ -52,6 +54,17 @@ def create_app(config: Config | None = None) -> Flask:
     def inhibit():
         director.set_inhibit(request.form.get("inhibited") == "1")
         flash("Transmission inhibited" if director.inhibited else "Transmission enabled")
+        return redirect(url_for("dashboard"))
+
+    @app.post("/control/bsr-policy")
+    def bsr_policy():
+        try:
+            director.set_bsr_policy(
+                request.form.get("policy", "off"), request.form.get("callsigns", "")
+            )
+            flash(f"BSR/FIX policy set to {director.bsr_policy}")
+        except ValueError as exc:
+            flash(str(exc))
         return redirect(url_for("dashboard"))
 
     @app.post("/catalogue/import")
